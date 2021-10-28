@@ -1,0 +1,28 @@
+version: '3'
+services:
+  db:
+    build: ./mysql/ 
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - db_volume:/var/lib/mysql
+
+  api-service:
+    restart: always
+    build: ./
+    ports:
+      - "8080:80"
+    environment:
+      - DB_USER=root
+      - DB_PASS=root
+      - DB_ADDRESS=localhost:3306
+      - DB_PROTOCOL=tcp
+      - DB_NAME=puapp
+    depends_on:
+      - db
+    links:
+      - db
+
+volumes:
+  db_volume:
