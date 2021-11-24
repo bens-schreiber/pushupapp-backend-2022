@@ -1,4 +1,4 @@
-// Rest Endpoint Security helper function package
+// Rest Endpoint Security helper functions
 package bres
 
 import (
@@ -14,16 +14,9 @@ import (
 // Initialize maps in memory
 func Init() {
 
-	configLogger()
-
 	tokens.Init()
 
 	ratelimit.Init()
-}
-
-// Insert a new token into memory
-func AddClient(ip string, username string) string {
-	return tokens.AddClient(ip, username)
 }
 
 // Checks context for specified headers
@@ -54,9 +47,6 @@ func ValidateAuthentication(c *gin.Context) (bool, error) {
 	token := c.GetHeader("Token")
 	username := c.GetHeader("Username")
 
-	tokens.GetAPITokens().Mu.Lock()
-	defer tokens.GetAPITokens().Mu.Unlock()
-
 	// Validate user is in allowed characters
 	// STATUS: 400 Bad Request on illegal characters
 	if ok, err := ValidateUserPassRegex(c, username, ""); !ok {
@@ -72,7 +62,7 @@ func ValidateAuthentication(c *gin.Context) (bool, error) {
 
 	// Check if api token exists
 	// STATUS: 401 Unauthorized on invalid token
-	if !tokens.GetAPITokens().TokenExists(token) {
+	if !tokens.TokenExists(token) {
 		log.Println("invalid token")
 		c.AbortWithStatus(401)
 		return false, err
@@ -80,14 +70,14 @@ func ValidateAuthentication(c *gin.Context) (bool, error) {
 
 	// Validate token field
 	// STATUS: 401 Unauthorized on invalid token
-	client, _ := tokens.GetAPITokens().GetClient(token)
+	client, _ := tokens.GetClient(token)
 	if client.Expired() ||
 		client.User != username ||
 		client.IP != c.ClientIP() {
 
 		log.Println("compromised, expired or invalid")
 		// Remove invalidated Token
-		tokens.GetAPITokens().DeleteUser(token)
+		tokens.DeleteUser(token)
 		c.AbortWithStatus(401)
 		return false, err
 
@@ -125,9 +115,4 @@ func ValidateUserPassRegex(c *gin.Context, username string, password string) (bo
 	}
 
 	return true, nil
-}
-
-func configLogger() {
-	log.SetPrefix("[bres] ")
-	log.SetFlags(log.Lmsgprefix)
 }

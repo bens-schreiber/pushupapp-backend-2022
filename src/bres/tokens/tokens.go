@@ -1,3 +1,7 @@
+// Contains functions to store API tokens linked to user accounts in memory
+// Generates a UID  on AddClient()
+// Tokens expire after 6 hour
+// Must call tokens.Init() to initalize maps
 package tokens
 
 import (
@@ -8,88 +12,99 @@ import (
 	"time"
 )
 
-type Client struct {
+type client struct {
 	IP   string
 	User string
 	Exp  time.Time
 }
 
-func (c *Client) Expired() bool {
+func (c *client) Expired() bool {
 	return c.Exp.Before(time.Now())
 }
 
-// Struct that maintains a necessary maps for managing APITokens
-type APITokens struct {
-	TokenClient map[string]*Client
+// Struct that maintains a necessary maps for managing TokenCache
+type TokenCache struct {
+	TokenClient map[string]*client
 	UserToken   map[string]string
 	Mu          *sync.Mutex
 }
 
-func (a *APITokens) GetClient(token string) (*Client, error) {
-	if v, ok := a.TokenClient[token]; ok {
-		return v, nil
+var cache *TokenCache
+
+func GetClient(token string) (client, error) {
+    cache.Mu.Lock()
+    defer cache.Mu.Unlock()
+
+    v := cache.TokenClient[token]
+	if v, ok := cache.TokenClient[token]; ok {
+		return *v, nil
 	}
-	err := errors.New("APITokens: user not found")
-	return nil, err
+	err := errors.New("user not found")
+	return *v, err
 
 }
 
-func (a *APITokens) TokenExists(token string) bool {
-	_, ok := a.TokenClient[token]
+func TokenExists(token string) bool {
+    cache.Mu.Lock()
+    defer cache.Mu.Unlock()
+
+	_, ok := cache.TokenClient[token]
 	return ok
 }
 
-func (a *APITokens) DeleteUser(token string) error {
-	c, err := a.GetClient(token)
+func DeleteUser(token string) error {
+    cache.Mu.Lock()
+    defer cache.Mu.Unlock()
+    
+	c, err := GetClient(token)
 	if err != nil {
 		return err
 	}
 
-	delete(a.TokenClient, token)
-	delete(a.UserToken, c.User)
+	delete(cache.TokenClient, token)
+	delete(cache.UserToken, c.User)
 	return err
 }
 
-func (a *APITokens) updateMap(ip string, username string, token string) {
+func updateMap(ip string, username string, token string) {
+    cache.Mu.Lock()
+    defer cache.Mu.Unlock()
+    
+
 	// Add a new client to the maps with an exp of 6 hours
 	// from current time
-	a.TokenClient[token] = &Client{
+	cache.TokenClient[token] = &client{
 		IP:   ip,
 		User: username,
 		Exp:  time.Now().Add(time.Hour * 6),
 	}
 
-	a.UserToken[username] = token
+	cache.UserToken[username] = token
 }
 
 func AddClient(ip string, username string) string {
-	apitokens.Mu.Lock()
-	defer apitokens.Mu.Unlock()
+	cache.Mu.Lock()
+	defer cache.Mu.Unlock()
 
 	// Create a random uid
 	uid := uuid.New().String()
 
-	if _, err := apitokens.GetClient(username); err == nil {
-		apitokens.DeleteUser(username)
+	if _, err := GetClient(username); err == nil {
+		DeleteUser(username)
 		log.Println("Refreshing a token")
 	}
 
-	apitokens.updateMap(ip, username, uid)
+	updateMap(ip, username, uid)
 	return uid
 }
 
-var apitokens *APITokens
-
-func GetAPITokens() *APITokens {
-	return apitokens
-}
 
 func Init() {
 
 	log.Println("Initializing token maps")
 
-	apitokens = &APITokens{
-		TokenClient: make(map[string]*Client),
+	cache = &TokenCache{
+		TokenClient: make(map[string]*client),
 		UserToken:   make(map[string]string),
 		Mu:          &sync.Mutex{},
 	}
@@ -97,15 +112,17 @@ func Init() {
 	go cleanTokens()
 }
 
+// Goroutine to  clean tokens every 10 min 
 func cleanTokens() {
 	for {
-		apitokens.Mu.Lock()
-		for _, v := range apitokens.TokenClient {
+		time.Sleep(time.Minute * 10)
+		cache.Mu.Lock()
+		for _, v := range cache.TokenClient {
 			if v.Expired() {
 				log.Println("Removing a token: " + v.User)
-				apitokens.DeleteUser(v.User)
+				DeleteUser(v.User)
 			}
 		}
-		apitokens.Mu.Unlock()
+		cache.Mu.Unlock()
 	}
 }

@@ -6,10 +6,16 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"log"
+	"os"
 )
 
 // SQL Database pointer
 var db *sql.DB
+
+// Health check
+func PingDB() error {
+	return db.Ping()
+}
 
 // SQL: table _group
 type Group struct {
@@ -183,18 +189,18 @@ func Establishconnection() error {
 	var err error
 
 	cfg := mysql.Config{
-		User:                 "root",
-		Passwd:               "root",
-		Net:                  "tcp",
-		Addr:                 "127.0.0.1:3306",
-		DBName:               "puapp",
-		AllowNativePasswords: true,
+		User:                 os.Getenv("DB_USER"),
+		Passwd:               os.Getenv("DB_PASS"),
+		Net:                  os.Getenv("DB_PROTOCOL"),
+		Addr:                 os.Getenv("DB_ADDRESS"),
+		DBName:               os.Getenv("DB_NAME"),
 	}
 
 	db, err = sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
+		log.Println("err here")
 		return err
-	}
+}
 
 	if err = db.Ping(); err != nil {
 		return err
@@ -203,7 +209,6 @@ func Establishconnection() error {
 	if err = setupPrepStates(); err != nil {
 		return err
 	}
-	configLogger()
 	log.Println("Connected to Database!")
 
 	return err
@@ -307,9 +312,4 @@ func setupPrepStates() error {
 	}
 
 	return err
-}
-
-func configLogger() {
-	log.SetFlags(log.Lmsgprefix)
-	log.SetPrefix("[bsql] ")
 }

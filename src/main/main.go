@@ -3,6 +3,7 @@ package main
 import (
 	"benschreiber.com/purestserver/src/bres"
 	"benschreiber.com/purestserver/src/bres/ratelimit"
+    "benschreiber.com/purestserver/src/bres/tokens"
 	"benschreiber.com/purestserver/src/bsql"
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
@@ -10,9 +11,6 @@ import (
 )
 
 func main() {
-
-	log.SetPrefix("[main] ")
-	log.SetFlags(log.Lmsgprefix)
 
 	//Establish connection to local db
 	if err := bsql.Establishconnection(); err != nil {
@@ -25,6 +23,9 @@ func main() {
 	//Define API endpoint
 	router := gin.Default()
 	router.Use(ratelimit.IPRateLimiter)
+
+	// Health check 
+	router.GET("/api/healthcheck", healthCheckPing)
 
 	// Client endpoints
 	client := "/api/client/"
@@ -42,6 +43,17 @@ func main() {
 
 	//port 8080
 	router.Run()
+}
+
+//TODO: Validate this is an internal reuqest
+func healthCheckPing(c *gin.Context) {
+	if err := bsql.PingDB(); err != nil {
+		c.AbortWithStatus(500)
+		return
+	}
+
+	c.JSON(200, gin.H{"success:": "sucess whale"})
+
 }
 
 // METHOD: POST
@@ -92,7 +104,7 @@ func loginClient(c *gin.Context) {
 
 	// Create the token in memory, return in JSON
 	// STATUS: 201 Created
-	c.JSON(201, gin.H{"token": bres.AddClient(c.ClientIP(), user)})
+	c.JSON(201, gin.H{"token": tokens.AddClient(c.ClientIP(), user)})
 }
 
 // METHOD: POST
