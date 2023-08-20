@@ -1,3 +1,4 @@
-./docker-compose.yml for building and running images from benschreiber dockerhub.
-
-./build/docker-compose.yml for building and running the images from Dockerfile
+# Pushupapp 2021 Backend
+A GO REST server made to interact with a MySQL database.
+Completely from scratch on all levels, no code generation, custom authentication process/tokens/expiration.
+Made my senior year of highschool for a passion project.
